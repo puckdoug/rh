@@ -8,6 +8,18 @@ This is currently an experiment to create a harness for running AI agents in rus
 
 The harness will manage a suite of specialized agents to deliver complete responses. This will need async (Tokio) interaction on top of the interaction with the user.
 
+## Credentials
+
+Requires Rust 1.88 or newer. The library provides `rh::credentials::Credential` for storing LLM API keys and other passwords in the current user's system keyring:
+
+- macOS: Keychain.
+- Windows: Credential Manager.
+- Linux/other supported Unix: Secret Service, requiring a session D-Bus and a running provider such as GNOME Keyring or KWallet with Secret Service enabled.
+
+Credentials use service name `rh` and a caller-chosen account such as `openai/api-key`. `Credential::new(account)` opens the entry, `set(secret)` stores or replaces it, `get()` returns an optional string, and `delete()` removes it. Deleting a missing credential succeeds. Other keyring errors are returned to the caller; there is no plaintext fallback.
+
+The keyring is accessed only through this API, not at chat startup. Credential CLI commands and LLM authentication are not connected yet. Keep secrets out of configuration files and logs; retrieved strings and native error objects must be treated as sensitive data. Tests use in-memory mock stores and do not access the system keyring.
+
 ## Configuration
 
 At startup, `rh` reads optional `config.toml` and `config.json` files from the directories below, in order. Later files override earlier settings. Within each directory, JSON overrides TOML.
