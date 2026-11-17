@@ -22,6 +22,8 @@ At startup, `rh` reads optional `config.toml` and `config.json` files from the d
 
 Finally, `rh` checks `.rh` in the nearest Git project root, including worktrees. Outside Git, it checks `.rh` in the current directory instead. Project settings override system and user settings.
 
+`rh` also reads `AGENTS.md` from that project root (or the current directory outside Git). Its UTF-8 Markdown is kept unchanged for future agent use; the current chat loop does not act on it yet. Missing `AGENTS.md` is allowed. Read errors or invalid UTF-8 stop startup with the filename in the error. Verbose mode reports the filename and byte count, not its contents. Instruction files elsewhere are not loaded.
+
 For example, create `.rh/config.toml` in your project:
 
 ```toml

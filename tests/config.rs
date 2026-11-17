@@ -143,6 +143,109 @@ fn rejects_unknown_settings() {
 }
 
 #[test]
+fn loads_project_agents_md_from_git_root_or_worktree() {
+    for worktree in [false, true] {
+        let root = TestDir::new();
+        if worktree {
+            root.write("project/.git", "gitdir: /unused/worktree\n");
+        } else {
+            fs::create_dir_all(root.path().join("project/.git")).unwrap();
+        }
+        fs::create_dir_all(root.path().join("project/subdir")).unwrap();
+        let text = "# Instructions\nKeep café names unchanged.\n";
+        root.write("project/AGENTS.md", text);
+        root.write("project/subdir/AGENTS.md", "not the root instructions");
+
+        let output = run(&root, &root.path().join("project/subdir"), &["-v"]);
+        assert!(output.status.success(), "{output:?}");
+        assert!(output.stdout.is_empty(), "{output:?}");
+        let stderr = String::from_utf8(output.stderr).unwrap();
+        let expected = format!(
+            "{} ({} bytes)",
+            Path::new("project").join("AGENTS.md").display(),
+            text.len()
+        );
+        assert!(stderr.contains("Loaded project instructions:"), "{stderr}");
+        assert!(stderr.contains(&expected), "{stderr}");
+        assert!(!stderr.contains(text), "{stderr}");
+        assert!(
+            !stderr.contains(&Path::new("subdir").join("AGENTS.md").display().to_string()),
+            "{stderr}"
+        );
+    }
+}
+
+#[test]
+fn loads_agents_md_from_cwd_outside_git_without_changing_normal_output() {
+    let root = TestDir::new();
+    root.write("project/AGENTS.md", "# Project instructions\n");
+    let cwd = root.path().join("project");
+    let quiet = run(&root, &cwd, &[]);
+    assert!(quiet.status.success(), "{quiet:?}");
+    assert!(quiet.stdout.is_empty(), "{quiet:?}");
+    assert!(quiet.stderr.is_empty(), "{quiet:?}");
+    let verbose = run(&root, &cwd, &["-v"]);
+    assert!(verbose.status.success(), "{verbose:?}");
+    let stderr = String::from_utf8(verbose.stderr).unwrap();
+    assert!(stderr.contains("Loaded project instructions:"), "{stderr}");
+    assert!(
+        stderr.contains(&Path::new("project").join("AGENTS.md").display().to_string()),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn empty_agents_md_is_loaded() {
+    let root = TestDir::new();
+    root.write("project/AGENTS.md", "");
+    let output = run(&root, &root.path().join("project"), &["-v"]);
+    assert!(output.status.success(), "{output:?}");
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("AGENTS.md (0 bytes)"), "{stderr}");
+}
+
+#[test]
+fn reports_agents_md_read_errors_with_filename() {
+    let root = TestDir::new();
+    let path = root.path().join("project/AGENTS.md");
+    fs::create_dir_all(&path).unwrap();
+    let output = run(&root, &root.path().join("project"), &[]);
+    assert!(!output.status.success(), "{output:?}");
+    assert!(output.stdout.is_empty(), "{output:?}");
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains(&path.display().to_string()), "{stderr}");
+}
+
+#[test]
+fn rejects_non_utf8_agents_md_with_filename() {
+    let root = TestDir::new();
+    let path = root.write("project/AGENTS.md", "");
+    fs::write(&path, [0xff]).unwrap();
+    let output = run(&root, &root.path().join("project"), &[]);
+    assert!(!output.status.success(), "{output:?}");
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains(&path.display().to_string()), "{stderr}");
+}
+
+#[test]
+fn only_loads_agents_md_at_nearest_project_root() {
+    let root = TestDir::new();
+    fs::create_dir_all(root.path().join("project/.git")).unwrap();
+    fs::create_dir_all(root.path().join("project/nested/.git")).unwrap();
+    root.write("project/AGENTS.md", "outer instructions");
+    root.write(
+        "project/nested/.rh/AGENTS.md",
+        "config directory instructions",
+    );
+    root.write("user/rh/AGENTS.md", "user instructions");
+
+    let output = run(&root, &root.path().join("project/nested"), &["-v"]);
+    assert!(output.status.success(), "{output:?}");
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(!stderr.contains("Loaded project instructions"), "{stderr}");
+}
+
+#[test]
 fn missing_configuration_uses_quiet_defaults() {
     let root = TestDir::new();
     fs::create_dir_all(root.path().join("project")).unwrap();

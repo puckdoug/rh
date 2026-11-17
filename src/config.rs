@@ -11,6 +11,22 @@ use serde::Deserialize;
 pub struct Config {
     pub verbose: bool,
     pub loaded_files: Vec<PathBuf>,
+    pub project_instructions: Option<ProjectInstructions>,
+}
+
+pub struct ProjectInstructions {
+    pub path: PathBuf,
+    pub contents: String,
+}
+
+impl ProjectInstructions {
+    fn load(path: PathBuf) -> Result<Option<Self>, ConfigError> {
+        match fs::read_to_string(&path) {
+            Ok(contents) => Ok(Some(Self { path, contents })),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(ConfigError(format!("{}: {error}", path.display()))),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -63,6 +79,7 @@ impl Config {
                 config.loaded_files.push(path);
             }
         }
+        config.project_instructions = ProjectInstructions::load(project_root.join("AGENTS.md"))?;
         Ok(config)
     }
 }
@@ -118,4 +135,17 @@ fn config_directories() -> Vec<PathBuf> {
         directories.push(user.join("rh"));
     }
     directories
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn project_instructions_preserve_the_full_markdown() {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("AGENTS.md");
+        let instructions = ProjectInstructions::load(path.clone()).unwrap().unwrap();
+        assert_eq!(instructions.path, path);
+        assert_eq!(instructions.contents, include_str!("../AGENTS.md"));
+    }
 }

@@ -31,6 +31,13 @@ fn run() -> Result<(), Box<dyn Error>> {
         for path in &config.loaded_files {
             eprintln!("Loaded configuration: {}", path.display());
         }
+        if let Some(instructions) = &config.project_instructions {
+            eprintln!(
+                "Loaded project instructions: {} ({} bytes)",
+                instructions.path.display(),
+                instructions.contents.len()
+            );
+        }
         eprintln!("Starting chat; press Ctrl-C or Ctrl-D to exit.");
     }
 
