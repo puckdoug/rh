@@ -1,3 +1,6 @@
+mod config;
+
+use std::error::Error;
 use std::io::{self, IsTerminal, Write};
 
 use clap::Parser;
@@ -14,9 +17,20 @@ struct Args {
     verbose: bool,
 }
 
-fn main() -> rustyline::Result<()> {
+fn main() {
+    if let Err(error) = run() {
+        eprintln!("Error: {error}");
+        std::process::exit(1);
+    }
+}
+
+fn run() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
-    if args.verbose {
+    let config = config::Config::load()?;
+    if args.verbose || config.verbose {
+        for path in &config.loaded_files {
+            eprintln!("Loaded configuration: {}", path.display());
+        }
         eprintln!("Starting chat; press Ctrl-C or Ctrl-D to exit.");
     }
 
@@ -28,7 +42,7 @@ fn main() -> rustyline::Result<()> {
         let line = match editor.readline(prompt) {
             Ok(line) => line,
             Err(ReadlineError::Eof | ReadlineError::Interrupted) => break,
-            Err(error) => return Err(error),
+            Err(error) => return Err(error.into()),
         };
         editor.add_history_entry(line.as_str())?;
 
